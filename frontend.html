@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>AutoML Engine</title>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet"/>
+<style>
+  :root {
+    --bg:        #0a0a0f;
+    --bg2:       #0f0f16;
+    --bg3:       #16161f;
+    --bg4:       #1e1e2e;
+    --border:    #2a2a3e;
+    --accent:    #c084fc;
+    --accent2:   #f472b6;
+    --accent3:   #818cf8;
+    --text:      #e2e2f0;
+    --muted:     #6b6b8a;
+    --success:   #4ade80;
+    --mono:      'Space Mono', monospace;
+    --sans:      'DM Sans', sans-serif;
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--sans);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  body::before {
+    content: '';
+    position: fixed; inset: 0; z-index: 0; pointer-events: none;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
+    opacity: 0.35;
+  }
+
+  .blob {
+    position: fixed; border-radius: 50%; filter: blur(120px); pointer-events: none; z-index: 0;
+    animation: drift 12s ease-in-out infinite alternate;
+  }
+  .blob1 { width: 500px; height: 500px; background: rgba(192,132,252,0.07); top: -100px; left: -100px; }
+  .blob2 { width: 400px; height: 400px; background: rgba(244,114,182,0.05); bottom: 0; right: -80px; animation-delay: -4s; }
+  @keyframes drift { from { transform: translate(0,0); } to { transform: translate(30px, 20px); } }
+
+  .wrap { position: relative; z-index: 1; max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
+
+  header {
+    padding: 40px 0 36px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 40px;
+    display: flex; align-items: center; gap: 16px;
+  }
+  .logo-mark {
+    width: 40px; height: 40px; border-radius: 10px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--mono); font-size: 16px; color: #fff; font-weight: 700;
+  }
+  header h1 { font-family: var(--mono); font-size: 22px; font-weight: 700; letter-spacing: -0.5px; }
+  header p  { font-size: 13px; color: var(--muted); margin-top: 2px; }
+
+  .section-label {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 2px;
+    color: var(--accent); text-transform: uppercase; margin-bottom: 12px;
+  }
+
+  .card {
+    background: var(--bg2);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 28px;
+    margin-bottom: 24px;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: #3a3a5a; }
+
+  #drop-zone {
+    border: 1.5px dashed var(--border);
+    border-radius: 12px;
+    padding: 48px 24px;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.2s, background 0.2s;
+    position: relative;
+  }
+  #drop-zone:hover, #drop-zone.drag-over {
+    border-color: var(--accent);
+    background: rgba(192,132,252,0.04);
+  }
+  #drop-zone input { position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%; }
+  .upload-icon {
+    width: 48px; height: 48px; margin: 0 auto 16px;
+    border-radius: 12px; background: var(--bg4);
+    border: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px;
+  }
+  #drop-zone h3 { font-size: 15px; font-weight: 500; margin-bottom: 4px; }
+  #drop-zone p  { font-size: 13px; color: var(--muted); }
+  #file-name { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-top: 10px; }
+
+  #target-section { display: none; }
+  .select-wrap { position: relative; margin-top: 6px; }
+  .select-wrap select {
+    width: 100%; padding: 12px 16px;
+    background: var(--bg4); border: 1px solid var(--border);
+    color: var(--text); border-radius: 10px;
+    font-family: var(--sans); font-size: 14px;
+    appearance: none; cursor: pointer; transition: border-color 0.2s;
+  }
+  .select-wrap select:focus { outline: none; border-color: var(--accent); }
+  .select-wrap::after {
+    content: '▾'; position: absolute; right: 14px; top: 50%; transform: translateY(-50%);
+    color: var(--muted); pointer-events: none;
+  }
+
+  #preview-section { display: none; margin-top: 20px; }
+  .table-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+  thead tr { background: var(--bg4); }
+  thead th { padding: 10px 14px; color: var(--accent); text-align: left; font-weight: 700; white-space: nowrap; border-bottom: 1px solid var(--border); }
+  tbody tr { border-bottom: 1px solid #1a1a28; }
+  tbody tr:last-child { border-bottom: none; }
+  tbody td { padding: 9px 14px; color: var(--text); white-space: nowrap; }
+  tbody tr:hover { background: var(--bg4); }
+
+  .stats-row { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 16px; }
+  .stat-pill {
+    background: var(--bg4); border: 1px solid var(--border);
+    border-radius: 8px; padding: 8px 14px;
+    font-size: 12px; font-family: var(--mono);
+  }
+  .stat-pill span { color: var(--accent); font-weight: 700; }
+
+  #train-btn {
+    display: none; width: 100%; padding: 16px;
+    background: linear-gradient(135deg, #7c3aed, #be185d);
+    border: none; border-radius: 12px;
+    color: #fff; font-family: var(--mono); font-size: 14px; font-weight: 700;
+    letter-spacing: 1px; cursor: pointer;
+    transition: opacity 0.2s, transform 0.15s;
+    position: relative; overflow: hidden; margin-top: 8px;
+  }
+  #train-btn:hover { opacity: 0.9; transform: translateY(-1px); }
+  #train-btn:active { transform: scale(0.98); }
+  #train-btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+  #train-btn .btn-shine {
+    position: absolute; top: 0; left: -100%; width: 60%; height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+    animation: shine 2s ease-in-out infinite;
+  }
+  @keyframes shine { to { left: 150%; } }
+
+  #progress-section { display: none; }
+  .log-box {
+    background: var(--bg); border: 1px solid var(--border);
+    border-radius: 10px; padding: 16px;
+    font-family: var(--mono); font-size: 12px;
+    color: var(--muted); line-height: 1.8;
+    max-height: 140px; overflow-y: auto;
+  }
+  .log-line { opacity: 0; animation: fadein 0.3s forwards; }
+  .log-line.ok { color: var(--success); }
+  .log-line.hi { color: var(--accent); }
+  @keyframes fadein { to { opacity: 1; } }
+
+  #results-section { display: none; }
+
+  .result-hero {
+    background: linear-gradient(135deg, rgba(124,58,237,0.15), rgba(190,24,93,0.1));
+    border: 1px solid rgba(192,132,252,0.3);
+    border-radius: 16px; padding: 28px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+    flex-wrap: wrap; gap: 16px; margin-bottom: 24px;
+  }
+  .result-hero h2 {
+    font-family: var(--mono); font-size: 13px; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1.5px;
+  }
+  .result-hero .model-name { font-size: 26px; font-weight: 600; margin-top: 4px; }
+  .result-hero .score-badge {
+    background: rgba(74,222,128,0.1); border: 1px solid rgba(74,222,128,0.3);
+    color: var(--success); border-radius: 10px; padding: 10px 20px;
+    font-family: var(--mono); font-size: 28px; font-weight: 700; text-align: center;
+    align-self: center;
+  }
+  .result-hero .score-badge small { display: block; font-size: 11px; color: var(--muted); margin-bottom: 2px; }
+
+  /* ── Download button ─────────────────────────── */
+  .download-btn {
+    display: inline-flex; align-items: center; gap: 8px;
+    margin-top: 16px; padding: 11px 22px;
+    border-radius: 10px;
+    font-family: var(--mono); font-size: 12px; font-weight: 700;
+    letter-spacing: 0.5px;
+    background: rgba(192,132,252,0.1);
+    border: 1px solid rgba(192,132,252,0.35);
+    color: var(--accent);
+    text-decoration: none;
+    transition: background 0.2s, border-color 0.2s, transform 0.15s;
+    cursor: pointer;
+  }
+  .download-btn:hover {
+    background: rgba(192,132,252,0.22);
+    border-color: rgba(192,132,252,0.65);
+    transform: translateY(-1px);
+  }
+  .download-btn:active { transform: scale(0.97); }
+  .download-btn svg { flex-shrink: 0; }
+
+  .model-row {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 12px 0; border-bottom: 1px solid var(--border); gap: 12px;
+  }
+  .model-row:last-child { border-bottom: none; }
+  .model-row .mname { font-size: 14px; font-weight: 500; min-width: 130px; }
+  .bar-track { flex: 1; height: 6px; background: var(--bg4); border-radius: 3px; overflow: hidden; }
+  .bar-fill  { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent3), var(--accent)); transition: width 1s cubic-bezier(0.4,0,0.2,1); }
+  .bar-fill.best { background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+  .mscore { font-family: var(--mono); font-size: 13px; min-width: 54px; text-align: right; }
+  .best-tag {
+    font-size: 10px; background: rgba(192,132,252,0.15);
+    color: var(--accent); border-radius: 4px; padding: 2px 7px;
+    font-family: var(--mono); white-space: nowrap;
+  }
+
+  .plots-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+  @media (max-width: 640px) { .plots-grid { grid-template-columns: 1fr; } }
+  .plot-card {
+    background: var(--bg2); border: 1px solid var(--border); border-radius: 14px; overflow: hidden;
+  }
+  .plot-card.wide { grid-column: 1 / -1; }
+  .plot-title { padding: 14px 18px 0; font-size: 12px; font-family: var(--mono); color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
+  .plot-card img { width: 100%; display: block; padding: 12px; }
+
+  .report-table { width: 100%; border-collapse: collapse; font-size: 12px; font-family: var(--mono); }
+  .report-table th { color: var(--accent); padding: 8px 12px; text-align: right; border-bottom: 1px solid var(--border); }
+  .report-table th:first-child { text-align: left; }
+  .report-table td { padding: 8px 12px; text-align: right; border-bottom: 1px solid #1a1a28; color: var(--text); }
+  .report-table td:first-child { text-align: left; color: var(--muted); }
+  .report-table tr:last-child td { border-bottom: none; }
+
+  .error-box {
+    background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.3);
+    color: #f87171; border-radius: 10px; padding: 14px 18px;
+    font-family: var(--mono); font-size: 13px; display: none; margin-top: 12px;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--bg2); }
+  ::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+</style>
+</head>
+<body>
+<div class="blob blob1"></div>
+<div class="blob blob2"></div>
+
+<div class="wrap">
+
+  <header>
+    <div class="logo-mark">ML</div>
+    <div>
+      <h1>AutoML Engine</h1>
+      <p>Upload a dataset · pick a target · get trained models &amp; charts</p>
+    </div>
+  </header>
+
+  <!-- Step 1 — Upload -->
+  <div class="section-label">01 — Dataset</div>
+  <div class="card">
+    <div id="drop-zone">
+      <input type="file" id="file-input" accept=".csv"/>
+      <div class="upload-icon">📂</div>
+      <h3>Drop your CSV here</h3>
+      <p>or click to browse · supports any CSV with a target column</p>
+      <div id="file-name"></div>
+    </div>
+    <div id="error-box" class="error-box"></div>
+    <div id="preview-section">
+      <div class="stats-row" id="stats-row"></div>
+      <div class="table-wrap" style="margin-top:16px">
+        <table id="preview-table"></table>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2 — Target column -->
+  <div id="target-section">
+    <div class="section-label">02 — Target Column</div>
+    <div class="card">
+      <p style="font-size:13px; color:var(--muted); margin-bottom:10px;">Select the column you want to predict</p>
+      <div class="select-wrap">
+        <select id="col-select"><option>— choose column —</option></select>
+      </div>
+      <button id="train-btn" onclick="startTraining()">
+        <span class="btn-shine"></span>
+        RUN AUTOML
+      </button>
+    </div>
+  </div>
+
+  <!-- Step 3 — Progress -->
+  <div id="progress-section">
+    <div class="section-label">03 — Training</div>
+    <div class="card">
+      <div class="log-box" id="log-box"></div>
+    </div>
+  </div>
+
+  <!-- Step 4 — Results -->
+  <div id="results-section">
+    <div class="section-label">04 — Results</div>
+    <div class="result-hero" id="hero"></div>
+    <div class="card">
+      <p class="section-label" style="margin-bottom:16px">Model Comparison</p>
+      <div id="model-compare"></div>
+    </div>
+    <div class="plots-grid" id="plots-grid"></div>
+    <div class="card" id="report-card" style="display:none; margin-top:0">
+      <p class="section-label" style="margin-bottom:16px">Classification Report — Best Model</p>
+      <div class="table-wrap"><table class="report-table" id="report-table"></table></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const API = 'http://localhost:5000';
+let uploadedFile = null;
+
+const dropZone  = document.getElementById('drop-zone');
+const fileInput = document.getElementById('file-input');
+
+dropZone.addEventListener('dragover',  e => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+dropZone.addEventListener('drop', e => {
+  e.preventDefault(); dropZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f) handleFile(f);
+});
+fileInput.addEventListener('change', () => { if (fileInput.files[0]) handleFile(fileInput.files[0]); });
+
+async function handleFile(file) {
+  uploadedFile = file;
+  document.getElementById('file-name').textContent = file.name;
+  showError('');
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res  = await fetch(`${API}/api/columns`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { showError(data.error); return; }
+    renderPreview(data);
+    renderColumnSelect(data.columns);
+  } catch(e) {
+    showError('Cannot reach backend. Make sure app.py is running on port 5000.');
+  }
+}
+
+function renderPreview(data) {
+  document.getElementById('preview-section').style.display = 'block';
+  document.getElementById('stats-row').innerHTML =
+    `<div class="stat-pill">Rows <span>${data.rows}</span></div>
+     <div class="stat-pill">Columns <span>${data.columns.length}</span></div>
+     <div class="stat-pill">File <span>${uploadedFile.name}</span></div>`;
+  const thead = `<thead><tr>${data.columns.map(c => `<th>${c}</th>`).join('')}</tr></thead>`;
+  const tbody = `<tbody>${data.preview.map(row =>
+    `<tr>${data.columns.map(c => `<td>${row[c] ?? ''}</td>`).join('')}</tr>`
+  ).join('')}</tbody>`;
+  document.getElementById('preview-table').innerHTML = thead + tbody;
+}
+
+function renderColumnSelect(cols) {
+  document.getElementById('target-section').style.display = 'block';
+  const sel = document.getElementById('col-select');
+  sel.innerHTML = `<option>— choose column —</option>` +
+    cols.map(c => `<option value="${c}">${c}</option>`).join('');
+  sel.onchange = () => {
+    document.getElementById('train-btn').style.display =
+      sel.value !== '— choose column —' ? 'block' : 'none';
+  };
+}
+
+async function startTraining() {
+  const target = document.getElementById('col-select').value;
+  if (!uploadedFile || !target || target === '— choose column —') return;
+
+  document.getElementById('train-btn').disabled = true;
+  document.getElementById('progress-section').style.display = 'block';
+  document.getElementById('results-section').style.display = 'none';
+
+  const logs = [
+    { t: 0,    txt: '> Loading dataset...',                              cls: '' },
+    { t: 600,  txt: '> Detecting problem type...',                       cls: '' },
+    { t: 1200, txt: '> Preprocessing features...',                       cls: 'ok' },
+    { t: 1800, txt: '> Running GridSearchCV — Random Forest',            cls: '' },
+    { t: 3200, txt: '> Running GridSearchCV — SVM',                      cls: '' },
+    { t: 4600, txt: '> Running GridSearchCV — Logistic / Linear Reg.',   cls: '' },
+    { t: 5800, txt: '> Evaluating models...',                            cls: '' },
+    { t: 6400, txt: '> Generating plots...',                             cls: 'ok' },
+    { t: 6800, txt: '> Saving best_model.pkl...',                        cls: 'hi' },
+  ];
+  const box = document.getElementById('log-box');
+  box.innerHTML = '';
+  logs.forEach(({ t, txt, cls }) => {
+    setTimeout(() => {
+      const el = document.createElement('div');
+      el.className = `log-line ${cls}`;
+      el.textContent = txt;
+      box.appendChild(el);
+      box.scrollTop = box.scrollHeight;
+    }, t);
+  });
+
+  const fd = new FormData();
+  fd.append('file', uploadedFile);
+  fd.append('target_column', target);
+
+  try {
+    const res  = await fetch(`${API}/api/train`, { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) { showError(data.error); document.getElementById('train-btn').disabled = false; return; }
+    setTimeout(() => renderResults(data), 7200);
+  } catch(e) {
+    showError('Training failed. Check your backend console.');
+    document.getElementById('train-btn').disabled = false;
+  }
+}
+
+function renderResults(data) {
+  document.getElementById('results-section').style.display = 'block';
+  document.getElementById('train-btn').disabled = false;
+
+  // ── Hero card with download button ──────────────────────────────────────
+  document.getElementById('hero').innerHTML = `
+    <div>
+      <h2>Best Model</h2>
+      <div class="model-name">${data.best_model}</div>
+      <div style="font-size:13px; color:var(--muted); margin-top:6px;">
+        Problem type: <span style="color:var(--accent)">${data.problem_type}</span>
+        &nbsp;·&nbsp; Dataset: ${data.dataset_info.rows} rows, ${data.dataset_info.features} features
+      </div>
+      <a href="${API}/api/download-model"
+         download="best_model.pkl"
+         class="download-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2.5"
+             stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+          <polyline points="7 10 12 15 17 10"/>
+          <line x1="12" y1="15" x2="12" y2="3"/>
+        </svg>
+        DOWNLOAD best_model.pkl
+      </a>
+    </div>
+    <div class="score-badge">
+      <small>${data.metric_label}</small>
+      ${(data.best_score * 100).toFixed(2)}%
+    </div>`;
+
+  // ── Model comparison bars ────────────────────────────────────────────────
+  const maxScore = Math.max(...Object.values(data.all_results).map(r => r.score));
+  document.getElementById('model-compare').innerHTML = Object.entries(data.all_results)
+    .sort((a, b) => b[1].score - a[1].score)
+    .map(([name, r]) => {
+      const isBest    = name === data.best_model;
+      const pct       = ((r.score / maxScore) * 100).toFixed(1);
+      const paramsStr = Object.entries(r.best_params).map(([k,v]) => `${k}=${v}`).join(', ') || '—';
+      return `<div class="model-row">
+        <span class="mname">${name}</span>
+        <div class="bar-track">
+          <div class="bar-fill ${isBest ? 'best' : ''}" style="width:0%" data-w="${pct}%"></div>
+        </div>
+        <span class="mscore" style="color:${isBest ? 'var(--success)' : 'var(--text)'}">
+          ${(r.score * 100).toFixed(2)}%
+        </span>
+        ${isBest
+          ? '<span class="best-tag">BEST</span>'
+          : `<span style="font-size:11px;color:var(--muted);font-family:var(--mono)">${paramsStr}</span>`}
+      </div>`;
+    }).join('');
+
+  requestAnimationFrame(() => {
+    document.querySelectorAll('.bar-fill').forEach(el => { el.style.width = el.dataset.w; });
+  });
+
+  // ── Plots ────────────────────────────────────────────────────────────────
+  const pg = document.getElementById('plots-grid');
+  pg.innerHTML = '';
+  const plotMeta = {
+    model_comparison:    { title: 'Model Comparison',    wide: true  },
+    confusion_matrix:    { title: 'Confusion Matrix',    wide: false },
+    actual_vs_predicted: { title: 'Actual vs Predicted', wide: false },
+    feature_importance:  { title: 'Feature Importance',  wide: false },
+  };
+  Object.entries(data.plots).forEach(([key, b64]) => {
+    const meta = plotMeta[key] || { title: key, wide: false };
+    const div  = document.createElement('div');
+    div.className = `plot-card ${meta.wide ? 'wide' : ''}`;
+    div.innerHTML = `<div class="plot-title">${meta.title}</div>
+                     <img src="data:image/png;base64,${b64}" alt="${meta.title}"/>`;
+    pg.appendChild(div);
+  });
+
+  // ── Classification report ────────────────────────────────────────────────
+  if (data.reports && data.reports[data.best_model]) {
+    const rep = data.reports[data.best_model];
+    document.getElementById('report-card').style.display = 'block';
+    const keys = Object.keys(rep).filter(k => !['accuracy', 'macro avg', 'weighted avg'].includes(k));
+    document.getElementById('report-table').innerHTML =
+      `<thead><tr>
+         <th>Class</th><th>Precision</th><th>Recall</th><th>F1-score</th><th>Support</th>
+       </tr></thead>
+       <tbody>
+         ${keys.map(cls => `<tr>
+           <td>${cls}</td>
+           <td>${(rep[cls].precision   * 100).toFixed(1)}%</td>
+           <td>${(rep[cls].recall      * 100).toFixed(1)}%</td>
+           <td>${(rep[cls]['f1-score'] * 100).toFixed(1)}%</td>
+           <td>${rep[cls].support}</td>
+         </tr>`).join('')}
+         <tr style="border-top:1px solid var(--border)">
+           <td style="color:var(--accent)">accuracy</td>
+           <td colspan="3" style="text-align:center;color:var(--success)">
+             ${(rep.accuracy * 100).toFixed(2)}%
+           </td>
+           <td></td>
+         </tr>
+       </tbody>`;
+  }
+
+  document.getElementById('results-section').scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-box');
+  el.textContent = msg ? `Error: ${msg}` : '';
+  el.style.display = msg ? 'block' : 'none';
+}
+</script>
+</body>
+</html>
