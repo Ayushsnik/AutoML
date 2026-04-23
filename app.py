@@ -235,6 +235,12 @@ def train():
     except Exception as e:
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
+
+from flask import send_from_directory
+
+@app.route('/')
+def index():
+    return send_from_directory('.', 'frontend.html')
     
 from flask import send_file
 
