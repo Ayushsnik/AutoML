@@ -94,10 +94,10 @@ def train():
         # ── CLASSIFICATION ──────────────────────────────────────────────────
         if problem_type == 'classification':
             models = {
-                'Random Forest': (RandomForestClassifier(),  {'n_estimators': [50, 100], 'max_depth': [None, 10, 20]}),
-                'SVM':           (SVC(),                     {'C': [0.1, 1, 10], 'kernel': ['linear', 'rbf']}),
-                'Logistic Reg':  (LogisticRegression(max_iter=1000), {'C': [0.1, 1, 10]}),
-            }
+                'Random Forest': (RandomForestClassifier(),  {'n_estimators': [50], 'max_depth': [None, 10]}),
+                'SVM':           (SVC(),                     {'C': [1, 10], 'kernel': ['rbf']}),
+                'Logistic Reg':  (LogisticRegression(max_iter=1000), {'C': [0.1, 1]}),
+                }
             for name, (model, params) in models.items():
                 grid = GridSearchCV(model, params, cv=3, scoring='accuracy')
                 grid.fit(X_train, y_train)
@@ -145,8 +145,8 @@ def train():
         # ── REGRESSION ──────────────────────────────────────────────────────
         else:
             models = {
-                'Random Forest': (RandomForestRegressor(), {'n_estimators': [50, 100], 'max_depth': [None, 10, 20]}),
-                'SVR':           (SVR(),                   {'C': [0.1, 1, 10], 'kernel': ['linear', 'rbf']}),
+                'Random Forest': (RandomForestRegressor(), {'n_estimators': [50], 'max_depth': [None, 10]}),
+                'SVR':           (SVR(),                   {'C': [1, 10], 'kernel': ['rbf']}),
                 'Linear Reg':    (LinearRegression(),      {}),
             }
             for name, (model, params) in models.items():
