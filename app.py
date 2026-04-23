@@ -84,8 +84,8 @@ def train():
             return jsonify({'error': f'Column "{target_col}" not found'}), 400
 
         # Sample large datasets to keep training fast on free tier
-        if len(df) > 1000:
-            df = df.sample(1000, random_state=42)
+        if len(df) > 500:
+            df = df.sample(500, random_state=42)
 
         problem_type = detect_problem(df[target_col])
         X, y, feature_names = preprocess(df, target_col)
