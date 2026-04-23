@@ -21,7 +21,7 @@ from sklearn.utils.multiclass import type_of_target
 
 from sklearn.linear_model import LogisticRegression, LinearRegression
 from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
-from sklearn.svm import SVC, SVR
+from sklearn.svm import LinearSVC, LinearSVR
 
 import joblib
 
@@ -83,6 +83,10 @@ def train():
         if target_col not in df.columns:
             return jsonify({'error': f'Column "{target_col}" not found'}), 400
 
+        # Sample large datasets to keep training fast on free tier
+        if len(df) > 1000:
+            df = df.sample(1000, random_state=42)
+
         problem_type = detect_problem(df[target_col])
         X, y, feature_names = preprocess(df, target_col)
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42)
@@ -94,10 +98,10 @@ def train():
         # ── CLASSIFICATION ──────────────────────────────────────────────────
         if problem_type == 'classification':
             models = {
-                'Random Forest': (RandomForestClassifier(),  {'n_estimators': [50], 'max_depth': [None, 10]}),
-                'SVM':           (SVC(),                     {'C': [1, 10], 'kernel': ['rbf']}),
-                'Logistic Reg':  (LogisticRegression(max_iter=1000), {'C': [0.1, 1]}),
-                }
+                'Random Forest': (RandomForestClassifier(),         {'n_estimators': [50], 'max_depth': [None, 10]}),
+                'SVM':           (LinearSVC(max_iter=2000),         {'C': [0.1, 1]}),
+                'Logistic Reg':  (LogisticRegression(max_iter=1000),{'C': [0.1, 1]}),
+            }
             for name, (model, params) in models.items():
                 grid = GridSearchCV(model, params, cv=3, scoring='accuracy')
                 grid.fit(X_train, y_train)
@@ -126,14 +130,14 @@ def train():
             plt.tight_layout()
             plots['confusion_matrix'] = fig_to_base64(fig)
 
-            # Feature importance
+            # Feature importance (Random Forest only)
             if hasattr(best_model, 'feature_importances_'):
                 fi  = best_model.feature_importances_
                 idx = np.argsort(fi)[::-1][:10]
                 fig, ax = plt.subplots(figsize=(6, 4))
                 fig.patch.set_facecolor('#0f0f13')
                 ax.set_facecolor('#0f0f13')
-                bars = ax.barh([feature_names[i] for i in idx[::-1]], fi[idx[::-1]], color='#c084fc')
+                ax.barh([feature_names[i] for i in idx[::-1]], fi[idx[::-1]], color='#c084fc')
                 ax.tick_params(colors='#a0a0b0')
                 ax.set_xlabel('Importance', color='#a0a0b0')
                 for spine in ax.spines.values(): spine.set_color('#2a2a3e')
@@ -146,8 +150,8 @@ def train():
         else:
             models = {
                 'Random Forest': (RandomForestRegressor(), {'n_estimators': [50], 'max_depth': [None, 10]}),
-                'SVR':           (SVR(),                   {'C': [1, 10], 'kernel': ['rbf']}),
-                'Linear Reg':    (LinearRegression(),      {}),
+                'SVM':           (LinearSVR(max_iter=2000), {'C': [0.1, 1]}),
+                'Linear Reg':    (LinearRegression(),       {}),
             }
             for name, (model, params) in models.items():
                 if params:
@@ -236,13 +240,12 @@ def train():
         traceback.print_exc()
         return jsonify({'error': str(e)}), 500
 
-from flask import send_from_directory
+
+from flask import send_from_directory, send_file
 
 @app.route('/')
 def index():
     return send_from_directory('.', 'frontend.html')
-    
-from flask import send_file
 
 @app.route('/api/download-model', methods=['GET'])
 def download_model():
